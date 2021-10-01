@@ -8,13 +8,16 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <signal.h>
+//#include <signal.h>
+#include <pthread.h>
+#include "mythreadpool.hpp"
 
 #define BOCKLOG 5
 class tcpServer{
   private:
     int _port;
     int _lsock;
+    mythreadpool *_tp;//线程池
 
   public:
     tcpServer(int port = 8080)
@@ -42,10 +45,13 @@ class tcpServer{
         std::cerr<<"listen error"<<std::endl;
         exit(1);
       }
+      //线程池初始化
+      _tp = new mythreadpool();
+      _tp->threadinit();
 
 
     }
-    void  Server(int sock){
+    static void Server(int sock){
       while(1){
         char bufer[64];
         ssize_t n = recv(sock, bufer, sizeof(bufer), 0); 
@@ -72,9 +78,18 @@ class tcpServer{
       //关闭accept创建的文件
       close(sock);
     }
+    static void *Service(void *arg){
+      std::cout<<"pid :"<<getpid()<<std::endl;
+      //线程分离，不用主线程等待
+      pthread_detach(pthread_self());
+      int sock = *(int *)arg;
+      Server(sock);
+      return (void *)0;
+
+    }
     
     void start(){
-      signal(SIGCHLD, SIG_IGN);
+      //signal(SIGCHLD, SIG_IGN);
       while(1){
         //接收连接
         struct sockaddr_in cli;
@@ -88,17 +103,30 @@ class tcpServer{
         cli_infor += std::to_string(ntohs(cli.sin_port));
 
         std::cout<<"get a link...."<<"client :"<<cli_infor<<std::endl;
-        pid_t id = fork();
-        if(id == 0){//子进程提供服务
-          //提供服务
-          //子进程退出会向父进程发送SIGCHLD信号
-          //如果处理动作为忽略系统会自动释放子进程资源
-          close(_lsock);//关闭_lsock,不使用，不影响父进程
-          Server(sock);
-          exit(0);
+        //线程池
+        Task *t = new Task(sock); //在堆上开辟空间
+        _tp->Put(*t); 
 
-        }
-        close(sock);//关闭sock，不使用，不影响子进程
+
+        //多线程
+       //不能关闭_lsock和sock，线程共用一个 
+        //防止主进程链接另外客户端修改sock值
+        //int *p = new int(sock);
+        //pthread_t tid;
+        ////Service参数传入sock地址，如果直接传sock地址，
+        //pthread_create(&tid, nullptr, Service, (void *)p);
+
+        //pid_t id = fork();
+        //if(id == 0){//子进程提供服务
+        //  //提供服务
+        //  //子进程退出会向父进程发送SIGCHLD信号
+        //  //如果处理动作为忽略系统会自动释放子进程资源
+        //  close(_lsock);//关闭_lsock,不使用，不影响父进程
+        //  Server(sock);
+        //  exit(0);
+
+        //}
+        //close(sock);//关闭sock，不使用，不影响子进程
         //父进程去链接进程，不需要等待
       }
 
