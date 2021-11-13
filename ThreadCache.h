@@ -10,15 +10,16 @@ private:
 public:
 	ThreadCache()
 	{}
-	//
+	//链表太长，需要合并到centralcache的span中
 	void ListTooLong(FreeList list, size_t size);
 
 	//声明和定义分离
+	//申请内存
 	void *Allocate(size_t size);
+	//返还内存
 	void Deallocate(void *ptr, size_t size);
-
+	//向centralcache申请内存
 	void* FetchFromCentral(size_t size);
-	void ListTooLong();
 
 	~ThreadCache()
 	{}

@@ -161,11 +161,13 @@ public:
 		size_t i = 1;
 		while (i < n){
 			cur = NextObj(cur);
-			i++;
+			i++;  
 		}
 
 		head = NextObj(cur);
 		end = cur;
+		NextObj(end) = nullptr;
+		size -= n;
 
 	}
 
@@ -181,8 +183,8 @@ public:
 		//Í·É¾
 		void *obj = head;
 		head = NextObj(obj);
-		return obj;
 		size--;
+		return obj;
 	}
 	bool Empty(){
 		return head == nullptr;
@@ -233,7 +235,7 @@ public:
 
 	}
 	//É¾³ýposÎ»ÖÃSpan
-	Span* Pop(Span* pos){
+	void Pop(Span* pos){
 		assert(pos != head);
 		Span* posprev = pos->prev;
 		Span* posnext = pos->next;

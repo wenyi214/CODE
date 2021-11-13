@@ -14,18 +14,24 @@ Span* CentralCache::GetOneSpan(SpanList& list, size_t size){
 
 	//span中没有内存或者没有span找pagecache要
 	//需要确认需要申请多大的span
-	Span *sp  = pageCache.NewSpan(SizeClass::NumMovePage(size));
-	//总大小
-	size_t numSize = sp->n << 12;//页数成以4096为总大小
-	//分成size之后的个数
-	size_t n = numSize / size;
-	char *start = (char *)(sp->pageid<< 12);//页号乘以4096等于地址，申请是以页为单位申请的。
-	sp->list = (void *)start;
-	while (n){
-		NextObj(start) = (start + size);
-		start += size;
-		n--;
+	
+	Span *sp = pageCache.NewSpan(SizeClass::NumMovePage(size));
+	//切割号span
+	char *start = (char*)(sp->pageid << PAGE_SHIFT);
+	char *end = start + (sp->n << PAGE_SHIFT);
+
+	while (start < end){
+		char *next = start + size;
+		
+		NextObj(start) = sp->list;
+		sp->list = start;
+
+		start = next;
+
 	}
+
+	list.PushFront(sp);
+
 	return sp;
 
 }
@@ -58,9 +64,31 @@ size_t CentralCache::FetchRangeObj(void*& start, void*& end, size_t n, size_t si
 }
 
 void CentralCache::ReleaseListToSpans(void* start, size_t size){
+	size_t i = SizeClass::Index(size);
 	//需要知道内存块属于哈希桶位置的那个span中，pagecache用map记录了页号和span的映射
-	//通过地址结算页号，除以4096即可，内存以页位单位
+	//通过地址计算页号，除以4096即可，内存以页位单位
 	while (start){
+		//获得页号
+		//获得span
+		Span* sp = pageCache.ObjToSpan(start);
+
+		//方便start更新
+		void *next = NextObj(start);
+		//头插
+		NextObj(start) = sp->list;
+		sp->list = start;
+		sp->use_count--;
+		//span中的小块内存全部返回，需要返还到pagecache中
+		if (sp->use_count == 0){
+			//从链表中删除
+			spanlist[i].Pop(sp);
+			sp->list = nullptr;
+
+			//插入到pagecahe中
+			pageCache.ReleaseSpanToPageCache(sp);
+		}
+
+		start = next;
 
 	}
 }

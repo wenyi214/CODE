@@ -23,7 +23,7 @@ void* ThreadCache::FetchFromCentral(size_t size){
 	 
 	if (actualNum > 1){
 		//返回个数大于1，将一个返回，其它内存连接到threadcache对尾链表中
-		freelist[pos].PushRange(NextObj(start), end, actualNum);
+		freelist[pos].PushRange(NextObj(start), end, actualNum - 1);
 	}
 	
 	//central只有一个，直接返回
@@ -54,7 +54,7 @@ void ThreadCache::ListTooLong(FreeList list, size_t size){
 	//从freelist中获取n个内存块
 	list.PopRange(start, end, actul_num);
 
-	centralCache.ReleaseListToSpans(start, actul_num);
+	centralCache.ReleaseListToSpans(start, size);
 
 }
 
@@ -65,7 +65,7 @@ void ThreadCache::Deallocate(void *ptr, size_t size){
 	freelist[i].Push(ptr);
 	//改进，防止哈希桶中太多的内存块，需要交给central cache
 	//释放不是固定一个值，maxsize记录了centralcache给threadcache内存块个数的最大值
-	if (freelist[i].GetSize() > freelist[i].GetMaxsize()){
+	if (freelist[i].GetSize() >= freelist[i].GetMaxsize()){
 		ListTooLong(freelist[i], size);
  	}
 }
